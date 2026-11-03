@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/widgets.dart';
@@ -99,8 +100,46 @@ class MusicService extends Notifier<MusicState> {
     }
   }
 
+  Future<void> removeMissingFiles() async {
+    final validFiles = <XFile>[];
+    XFile? activeTrack = state.current;
+
+    for (final file in state.library) {
+      if (await File(file.path).exists()) {
+        validFiles.add(file);
+      } else {
+        // If the currently playing file was deleted, mark it null
+        if (state.current?.path == file.path) {
+          activeTrack = null;
+        }
+      }
+    }
+
+    if (validFiles.length != state.library.length) {
+      state = state.copyWith(library: validFiles, current: activeTrack);
+
+      if (validFiles.isNotEmpty) {
+        final mediaList = validFiles.map((f) => Media(f.path)).toList();
+
+        int targetIndex = 0;
+        if (activeTrack != null) {
+          targetIndex = validFiles.indexWhere(
+            (f) => f.path == activeTrack!.path,
+          );
+          if (targetIndex == -1) targetIndex = 0;
+        }
+
+        await audioPlayer.openAll(mediaList, index: targetIndex);
+      } else {
+        await audioPlayer.stop();
+        state = state.copyWith(current: null, isPlaying: false);
+      }
+    }
+  }
+
   Future<void> playTrack(XFile file) async {
     if (state.library.isNotEmpty) {
+      await removeMissingFiles();
       await playFromLibrary(state.library, file);
     } else {
       try {
@@ -114,6 +153,7 @@ class MusicService extends Notifier<MusicState> {
   }
 
   Future<void> togglePlayPause() async {
+    await removeMissingFiles();
     if (audioPlayer.state.playing) {
       await audioPlayer.pause();
     } else {
@@ -122,6 +162,7 @@ class MusicService extends Notifier<MusicState> {
   }
 
   Future<void> seek(Duration position) async {
+    await removeMissingFiles();
     await audioPlayer.seek(position);
   }
 
@@ -130,12 +171,15 @@ class MusicService extends Notifier<MusicState> {
     state = state.copyWith(volume: volume);
   }
 
-  // Simplified native playlist triggers
   Future<void> playNext() async {
+    await removeMissingFiles();
+
     await audioPlayer.nextPlaylist();
   }
 
   Future<void> playPrevious() async {
+    await removeMissingFiles();
+
     await audioPlayer.previousPlaylist();
   }
 

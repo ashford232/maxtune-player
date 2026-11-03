@@ -98,10 +98,10 @@ class Nav {
 
 final navItems = [
   Nav(
-    name: 'Home',
+    name: 'Now Playing',
     id: 0,
-    icon: HugeIconsStroke.home04,
-    activeIcon: HugeIconsSolid.home04,
+    icon: HugeIconsStroke.play,
+    activeIcon: HugeIconsSolid.play,
     widget: Home(),
   ),
 

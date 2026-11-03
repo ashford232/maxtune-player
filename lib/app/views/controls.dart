@@ -8,7 +8,7 @@ import 'package:lite_router/lite_router.dart';
 import 'package:maxtune_player/app/services/app_providers.dart';
 import 'package:maxtune_player/app/services/music_service.dart';
 import 'package:maxtune_player/app/views/player_view.dart';
-import 'package:maxtune_player/app/widgets/waveform_seekbar.dart';
+import 'package:maxtune_player/app/widgets/audio_visualizer.dart';
 import 'package:path/path.dart' as p;
 
 class ControlsView extends ConsumerStatefulWidget {
@@ -41,7 +41,10 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
 
     final current = musicService.current;
     final fileName = current?.path == null ? "" : p.basename(current!.path);
-    final track = current?.path == null ? null : File(current!.path);
+    File? track = current?.path == null ? null : File(current!.path);
+    if (track != null && !track.existsSync()) {
+      track = null;
+    }
     final metadata = track == null ? null : readMetadata(track, getImage: true);
 
     return LayoutBuilder(
@@ -56,6 +59,7 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
                   metadata,
                   fileName,
                   current != null,
+                  isSmall,
                 ),
         );
       },
@@ -255,6 +259,7 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
     AudioMetadata? metadata,
     String fileName,
     bool hasCurrent,
+    bool isSmall,
   ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -306,10 +311,13 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: widget.isPlayer == true
-                                ? WaveformSeekBar(
-                                    player: player,
-                                    showTime: false,
+                            child: widget.isPlayer == true && !isSmall
+                                ? SizedBox(
+                                    width: 10,
+                                    child: AudioVisualizer(
+                                      player: player,
+                                      width: 100,
+                                    ),
                                   )
                                 : SizedBox(
                                     height: 20,
@@ -338,9 +346,11 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
                                   ),
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            formatDuration(duration),
-                            style: const TextStyle(fontSize: 10),
+                          Expanded(
+                            child: Text(
+                              formatDuration(duration),
+                              style: const TextStyle(fontSize: 10),
+                            ),
                           ),
                         ],
                       );

@@ -55,7 +55,7 @@ class _HomeState extends ConsumerState<Home> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Icon(
                             HugeIconsSolid.folderMusic,
@@ -116,6 +116,105 @@ class _HomeState extends ConsumerState<Home> {
                         ],
                       ),
                     )
+                  : !isCompact
+                  ? ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: 900),
+                      child: GridView.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                        ),
+                        itemCount: musicService.library.length,
+                        itemBuilder: (context, index) {
+                          final currentTrack = File(musicService.current!.path);
+                          final track = File(musicService.library[index].path);
+                          final metadata = readMetadata(track, getImage: true);
+                          final fileName = p.basename(track.path);
+                          final isCurrentPlaying =
+                              track.path == currentTrack.path;
+                          if (!track.existsSync()) {
+                            return SizedBox.shrink();
+                          }
+                          return InkWell(
+                            borderRadius: .circular(2),
+
+                            onTap: () async {
+                              if (isCurrentPlaying) {
+                                context.push(PlayerView());
+                                return;
+                              }
+                              await musicNotifier.playTrack(XFile(track.path));
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: .circular(2),
+
+                                color: isCurrentPlaying
+                                    ? theme.colorScheme.onSurface.withValues(
+                                        alpha: 0.1,
+                                      )
+                                    : null,
+                              ),
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                crossAxisAlignment: .start,
+                                children: [
+                                  Expanded(
+                                    child: SizedBox(
+                                      child: metadata.pictures.isNotEmpty
+                                          ? Image.memory(
+                                              metadata.pictures.first.bytes,
+                                              fit: .cover,
+                                              cacheHeight: 100,
+                                              cacheWidth: 100,
+                                              gaplessPlayback: true,
+                                            )
+                                          : Container(
+                                              decoration: BoxDecoration(
+                                                borderRadius: .circular(2),
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurface
+                                                    .withValues(alpha: 0.1),
+                                              ),
+                                              child: Center(
+                                                child: Icon(
+                                                  HugeIconsStroke.musicNote03,
+                                                  size: 20,
+                                                ),
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                  Text(
+                                    metadata.title ?? fileName,
+                                    maxLines: 1,
+                                    overflow: .ellipsis,
+                                    style: TextStyle(
+                                      fontSize: isSmall
+                                          ? 12
+                                          : isCompact
+                                          ? 14
+                                          : 17,
+                                    ),
+                                  ),
+
+                                  if (metadata.duration != null)
+                                    Text(
+                                      formatDuration(metadata.duration!),
+                                      style: TextStyle(fontSize: 10),
+                                    ),
+                                  if (isCurrentPlaying)
+                                    SpectrumMountain(
+                                      height: 10,
+                                      player: musicNotifier.audioPlayer,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    )
                   : ListView.separated(
                       separatorBuilder: (context, index) =>
                           const SizedBox(height: 2),
@@ -123,6 +222,9 @@ class _HomeState extends ConsumerState<Home> {
                       itemBuilder: (context, index) {
                         final currentTrack = File(musicService.current!.path);
                         final track = File(musicService.library[index].path);
+                        if (!track.existsSync()) {
+                          return SizedBox.shrink();
+                        }
                         final metadata = readMetadata(track, getImage: true);
                         final fileName = p.basename(track.path);
                         final isCurrentPlaying =

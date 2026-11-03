@@ -1,10 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons_pro/hugeicons.dart';
 import 'package:lite_router/lite_router.dart';
 import 'package:maxtune_player/app/services/app_providers.dart';
 import 'package:maxtune_player/app/views/controls.dart';
-import 'package:maxtune_player/app/widgets/audio_visualizer.dart';
 import 'package:maxtune_player/app/widgets/waveform_seekbar.dart';
 
 class PlayerView extends ConsumerStatefulWidget {
@@ -18,8 +19,26 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
   @override
   Widget build(BuildContext context) {
     final musicNotifier = ref.watch(musicServiceProvider.notifier);
+    final musicService = ref.watch(musicServiceProvider);
+    final theme = Theme.of(context);
+    final track = musicService.current == null
+        ? null
+        : File(musicService.current!.path);
+    final fileExists = track?.existsSync() ?? false;
+
+    if (!fileExists) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        musicNotifier.removeMissingFiles();
+        if (musicNotifier.audioPlayer.state.playing) {
+          musicNotifier.togglePlayPause();
+        }
+      });
+    }
     return Scaffold(
+      backgroundColor: theme.colorScheme.surfaceContainer,
       appBar: AppBar(
+        backgroundColor: theme.colorScheme.surfaceContainer,
+
         leading: IconButton(
           onPressed: () {
             context.back();
@@ -29,63 +48,43 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 750;
           final isSmall = constraints.maxWidth < 600;
-          return Column(
-            crossAxisAlignment: .start,
-            mainAxisAlignment: .end,
-            children: [
-              if (!isSmall)
-                Padding(
+          return !fileExists
+              ? Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: isSmall
-                          ? 350
-                          : isCompact
-                          ? 500
-                          : 700,
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12.0,
-                        vertical: 12,
-                      ),
-                      child: AudioVisualizer(
-                        height: 118,
-                        player: musicNotifier.audioPlayer,
-                      ),
-                    ),
-                  ),
-                ),
-              if (isCompact && isSmall)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                  child: Column(children: []),
+                )
+              : Column(
+                  crossAxisAlignment: .start,
+                  mainAxisAlignment: .end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: .center,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12.0,
+                            ),
 
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(5),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: WaveformSeekBar(
+                                player: musicNotifier.audioPlayer,
+                                showTime: false,
+                                height: !isSmall ? 168 : 132,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: WaveformSeekBar(
-                      player: musicNotifier.audioPlayer,
-                      showTime: false,
-                      height: 132,
-                    ),
-                  ),
-                ),
-              ControlsView(isPlayer: true),
-            ],
-          );
+                    ControlsView(isPlayer: true),
+                  ],
+                );
         },
       ),
     );

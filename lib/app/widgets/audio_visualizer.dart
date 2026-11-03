@@ -8,11 +8,12 @@ class AudioVisualizer extends StatelessWidget {
     super.key,
     required this.player,
     this.height = 24,
-    this.maxBars = 36,
+    this.maxBars = 36, this.width,
   });
 
   final Player player;
   final double height;
+  final double? width;
   final int maxBars;
 
   @override
@@ -21,7 +22,7 @@ class AudioVisualizer extends StatelessWidget {
 
     return SizedBox(
       height: height,
-      width: double.infinity,
+      width:width?? double.infinity,
       child: StreamBuilder<FftFrame>(
         stream: player.stream.fft,
         builder: (context, snapshot) {
