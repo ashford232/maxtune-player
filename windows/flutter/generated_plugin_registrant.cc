@@ -8,6 +8,8 @@
 
 #include <file_selector_windows/file_selector_windows.h>
 #include <irondash_engine_context/irondash_engine_context_plugin_c_api.h>
+#include <just_audio_windows_plus/just_audio_windows_plus_plugin.h>
+#include <mpv_audio_kit/mpv_audio_kit_plugin_c_api.h>
 #include <screen_retriever_windows/screen_retriever_windows_plugin_c_api.h>
 #include <super_native_extensions/super_native_extensions_plugin_c_api.h>
 #include <window_manager/window_manager_plugin.h>
@@ -17,6 +19,10 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FileSelectorWindows"));
   IrondashEngineContextPluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("IrondashEngineContextPluginCApi"));
+  JustAudioWindowsPlusPluginRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("JustAudioWindowsPlusPlugin"));
+  MpvAudioKitPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("MpvAudioKitPluginCApi"));
   ScreenRetrieverWindowsPluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("ScreenRetrieverWindowsPluginCApi"));
   SuperNativeExtensionsPluginCApiRegisterWithRegistrar(

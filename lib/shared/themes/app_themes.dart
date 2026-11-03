@@ -187,7 +187,9 @@ class AppThemes {
           side: BorderSide(color: border),
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
         ),
       ),
 
@@ -200,7 +202,11 @@ class AppThemes {
       ),
 
       iconTheme: IconThemeData(color: isDark ? darkText : lightText, size: 18),
-
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: .circular(2)),
+        ),
+      ),
       popupMenuTheme: PopupMenuThemeData(
         color: surface,
         elevation: 4,

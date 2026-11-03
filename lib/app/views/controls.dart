@@ -1,22 +1,48 @@
+import 'dart:io';
+
+import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons_pro/hugeicons.dart';
-import 'package:skeletonizer/skeletonizer.dart';
+import 'package:lite_router/lite_router.dart';
+import 'package:maxtune_player/app/services/app_providers.dart';
+import 'package:maxtune_player/app/services/music_service.dart';
+import 'package:maxtune_player/app/views/player_view.dart';
+import 'package:maxtune_player/app/widgets/waveform_seekbar.dart';
+import 'package:path/path.dart' as p;
 
 class ControlsView extends ConsumerStatefulWidget {
-  const ControlsView({super.key});
+  final bool? isPlayer;
+  const ControlsView({super.key, this.isPlayer});
 
   @override
   ConsumerState<ConsumerStatefulWidget> createState() => _ControlsViewState();
 }
 
 class _ControlsViewState extends ConsumerState<ControlsView> {
-  double _volumeValue = 0.8;
-  bool _isMuted = false;
+  double get _volumeValue => musicService.volume;
+  bool get _isMuted => musicService.volume == 0;
+
+  MusicState get musicService => ref.watch(musicServiceProvider);
+  MusicService get musicNotifier => ref.watch(musicServiceProvider.notifier);
+
+  @override
+  void dispose() {
+    if (musicNotifier.audioPlayer.state.playing) {
+      musicNotifier.togglePlayPause();
+    }
+    musicNotifier.disposePlayer();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    final current = musicService.current;
+    final fileName = current?.path == null ? "" : p.basename(current!.path);
+    final track = current?.path == null ? null : File(current!.path);
+    final metadata = track == null ? null : readMetadata(track, getImage: true);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -24,213 +50,319 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12),
           child: isSmall
-              ? _buildCompactPlayer(theme)
-              : _buildExpandedPlayer(theme),
+              ? _buildCompactPlayer(theme, metadata, fileName, current != null)
+              : _buildExpandedPlayer(
+                  theme,
+                  metadata,
+                  fileName,
+                  current != null,
+                ),
         );
       },
     );
   }
 
-  Widget _buildCompactPlayer(ThemeData theme) {
+  Widget _buildAlbumArtButton({bool isCompact = false}) {
+    return Builder(
+      builder: (context) {
+        final metadata = musicService.current == null
+            ? null
+            : readMetadata(File(musicService.current!.path), getImage: true);
+        final double size = isCompact ? 50 : 70;
+        final theme = Theme.of(context);
+        return ClipRRect(
+          borderRadius: .circular(2),
+
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: .circular(2),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
+            ),
+            width: size,
+            height: size,
+            child: metadata?.pictures.isNotEmpty ?? false
+                ? Image.memory(
+                    metadata!.pictures.first.bytes,
+                    fit: .cover,
+                    cacheHeight: 100,
+                    cacheWidth: 100,
+                    width: size,
+                    height: size,
+                    gaplessPlayback: true,
+                  )
+                : Center(child: Icon(HugeIconsStroke.musicNote03, size: 20)),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTrackInfo({
+    required AudioMetadata? metadata,
+    required String fileName,
+    required bool hasCurrent,
+    bool isCompact = false,
+  }) {
+    final title = hasCurrent
+        ? metadata?.title ?? (fileName.isNotEmpty ? fileName : "Unknown")
+        : 'Playing something';
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.all(12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              onPressed: () {},
-              child: const Icon(HugeIconsStroke.musicNote01, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Skeletonizer(
-                    textBoneBorderRadius: TextBoneBorderRadius(
-                      .all(Radius.circular(2)),
-                    ),
-                    child: Text(
-                      '[Daddy Yo]_ D NAT X Y.A.D',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  Skeletonizer(
-                    textBoneBorderRadius: TextBoneBorderRadius(
-                      .all(Radius.circular(2)),
-                    ),
-                    child: Text('D NAT', style: TextStyle(fontSize: 11)),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        // Centralized playback controls for compact view
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-              onPressed: () {},
-              icon: const Icon(HugeIconsSolid.previous, size: 20),
-            ),
-            const SizedBox(width: 10),
-            IconButton(
-              style: IconButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: theme.colorScheme.onPrimary,
-                padding: const EdgeInsets.all(10),
-              ),
-              onPressed: () {},
-              icon: const Icon(HugeIconsSolid.play, size: 22),
-            ),
-            const SizedBox(width: 10),
-            IconButton(
-              onPressed: () {},
-              icon: const Icon(HugeIconsSolid.next, size: 20),
-            ),
-          ],
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontWeight: isCompact ? FontWeight.w600 : FontWeight.w500,
+            fontSize: isCompact ? 13 : 16,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildExpandedPlayer(ThemeData theme) {
+  Widget _buildPlaybackControls(ThemeData theme) {
+    final hasLibrary = musicService.library.isNotEmpty;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Previous Button
+        IconButton(
+          onPressed: hasLibrary ? () => musicNotifier.playPrevious() : null,
+          icon: const Icon(HugeIconsSolid.previous, size: 20),
+          tooltip: 'Previous',
+        ),
+        const SizedBox(width: 4),
+
+        // Play / Pause Button
+        IconButton(
+          style: IconButton.styleFrom(
+            backgroundColor: theme.colorScheme.primary,
+            foregroundColor: theme.colorScheme.onPrimary,
+            padding: const EdgeInsets.all(10),
+            shape: const CircleBorder(),
+          ),
+          onPressed: musicService.current != null
+              ? () => musicNotifier.togglePlayPause()
+              : null,
+          icon: Icon(
+            musicService.isPlaying ? HugeIconsSolid.pause : HugeIconsSolid.play,
+            size: 24,
+          ),
+          tooltip: 'Play/Pause',
+        ),
+        const SizedBox(width: 4),
+
+        // Next Button
+        IconButton(
+          onPressed: hasLibrary ? () => musicNotifier.playNext() : null,
+          icon: const Icon(HugeIconsSolid.next, size: 20),
+          tooltip: 'Next',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVolumeControl() {
+    return SizedBox(
+      width: 150,
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () {
+              if (_isMuted) {
+                musicNotifier.setVolume(0.8);
+              } else {
+                musicNotifier.setVolume(0.0);
+              }
+            },
+            icon: Icon(
+              _isMuted
+                  ? HugeIconsSolid.volumeMute01
+                  : HugeIconsSolid.volumeHigh,
+              size: 20,
+            ),
+          ),
+          Expanded(
+            child: SizedBox(
+              height: 20,
+              child: SliderTheme(
+                data: SliderThemeData(
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 5,
+                    disabledThumbRadius: 5,
+                  ),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 1),
+                ),
+                child: Slider(
+                  min: 0.0,
+                  max: 1.0,
+                  value: _isMuted ? 0.0 : _volumeValue.clamp(0.0, 1.0),
+                  onChanged: (value) {
+                    musicNotifier.setVolume(value);
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactPlayer(
+    ThemeData theme,
+    AudioMetadata? metadata,
+    String fileName,
+    bool hasCurrent,
+  ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: widget.isPlayer == true
+              ? null
+              : () {
+                  context.push(PlayerView());
+                },
+          child: Row(
+            children: [
+              _buildAlbumArtButton(isCompact: true),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildTrackInfo(
+                  metadata: metadata,
+                  fileName: fileName,
+                  hasCurrent: hasCurrent,
+                  isCompact: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildPlaybackControls(theme),
+      ],
+    );
+  }
+
+  Widget _buildExpandedPlayer(
+    ThemeData theme,
+    AudioMetadata? metadata,
+    String fileName,
+    bool hasCurrent,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // 1. Album / File Art Indicator
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 26),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          onPressed: () {},
-          child: const Icon(HugeIconsStroke.musicNote01),
+        InkWell(
+          onTap: widget.isPlayer == true
+              ? null
+              : () {
+                  context.push(PlayerView());
+                },
+          child: _buildAlbumArtButton(),
         ),
         const SizedBox(width: 16),
 
-        // 2. Track Info & Timeline Section
         Expanded(
           flex: 3,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Skeletonizer(
-                textBoneBorderRadius: TextBoneBorderRadius(
-                  .all(Radius.circular(2)),
-                ),
-                child: const Text(
-                  '[Daddy Yo]_ D NAT X Y.A.D • D NAT',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                ),
+              _buildTrackInfo(
+                metadata: metadata,
+                fileName: fileName,
+                hasCurrent: hasCurrent,
               ),
               const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Text('0:00:00', style: TextStyle(fontSize: 10)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SizedBox(
-                      height: 20,
-                      child: Slider(value: 0, onChanged: (value) {}),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text('0:00:00', style: TextStyle(fontSize: 10)),
-                ],
-              ),
-            ],
-          ),
-        ),
 
-        const SizedBox(width: 20),
+              StreamBuilder<Duration>(
+                stream: musicNotifier.audioPlayer.stream.position,
+                builder: (context, snapshot) {
+                  final position = snapshot.data ?? Duration.zero;
+                  final player = musicNotifier.audioPlayer;
 
-        // 3. Centralized Playback Controls (Prev, Play/Pause, Next)
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              onPressed: () {},
-              icon: const Icon(HugeIconsSolid.previous, size: 20),
-              tooltip: 'Previous',
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              style: IconButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: theme.colorScheme.onPrimary,
-                padding: const EdgeInsets.all(10),
-                shape: const CircleBorder(),
-              ),
-              onPressed: () {},
-              icon: const Icon(HugeIconsSolid.play, size: 22),
-              tooltip: 'Play',
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              onPressed: () {},
-              icon: const Icon(HugeIconsSolid.next, size: 20),
-              tooltip: 'Next',
-            ),
-          ],
-        ),
+                  return StreamBuilder<Duration>(
+                    stream: player.stream.duration,
+                    builder: (context, durationSnapshot) {
+                      final duration = durationSnapshot.data ?? Duration.zero;
 
-        const SizedBox(width: 20),
+                      final maxSeconds = duration.inSeconds.toDouble();
+                      final currentSeconds = position.inSeconds
+                          .toDouble()
+                          .clamp(0.0, maxSeconds > 0 ? maxSeconds : 1.0);
 
-        // 4. Volume Control Section
-        SizedBox(
-          width: 150,
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    _isMuted = !_isMuted;
-                  });
-                },
-                icon: Icon(
-                  _isMuted
-                      ? HugeIconsSolid.volumeMute01
-                      : HugeIconsSolid.volumeHigh,
-                  size: 20,
-                ),
-              ),
-              Expanded(
-                child: SizedBox(
-                  height: 20,
-                  child: Slider(
-                    value: _isMuted ? 0 : _volumeValue,
-                    onChanged: (value) {
-                      setState(() {
-                        _volumeValue = value;
-                        if (_isMuted) _isMuted = false;
-                      });
+                      return Row(
+                        children: [
+                          Text(
+                            formatDuration(position),
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: widget.isPlayer == true
+                                ? WaveformSeekBar(
+                                    player: player,
+                                    showTime: false,
+                                  )
+                                : SizedBox(
+                                    height: 20,
+                                    child: SliderTheme(
+                                      data: SliderThemeData(
+                                        thumbShape: const RoundSliderThumbShape(
+                                          enabledThumbRadius: 5,
+                                          disabledThumbRadius: 5,
+                                        ),
+                                        overlayShape:
+                                            const RoundSliderOverlayShape(
+                                              overlayRadius: 1,
+                                            ),
+                                      ),
+                                      child: Slider(
+                                        min: 0.0,
+                                        max: maxSeconds > 0 ? maxSeconds : 1.0,
+                                        value: currentSeconds,
+                                        onChanged: (value) {
+                                          player.seek(
+                                            Duration(seconds: value.toInt()),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            formatDuration(duration),
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                        ],
+                      );
                     },
-                  ),
-                ),
+                  );
+                },
               ),
             ],
           ),
         ),
+
+        const SizedBox(width: 20),
+        _buildPlaybackControls(theme),
+        const SizedBox(width: 20),
+        _buildVolumeControl(),
       ],
     );
   }
+}
+
+String formatDuration(Duration d) {
+  final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+  return '${d.inHours > 0 ? '${d.inHours}:' : ''}$minutes:$seconds';
 }

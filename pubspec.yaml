@@ -23,6 +23,8 @@ dependencies:
   super_drag_and_drop: ^0.9.1
   skeletonizer: ^3.0.0
   window_manager: ^0.5.2
+  just_audio_windows_plus: ^0.5.6
+  mpv_audio_kit: ^0.6.1
 
 dev_dependencies:
   flutter_test:

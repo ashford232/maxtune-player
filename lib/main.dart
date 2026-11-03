@@ -3,13 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lite_router/lite_router.dart';
 import 'package:maxtune_player/app/views/view.dart';
 import 'package:maxtune_player/shared/themes/app_themes.dart';
+import 'package:mpv_audio_kit/mpv_audio_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  MpvAudioKit.ensureInitialized();
   runApp(const ProviderScope(child: MaxTunePlayer()));
   await windowManager.ensureInitialized();
   await windowManager.waitUntilReadyToShow(
-    const WindowOptions(minimumSize: Size(450, 380), title: 'MaxTune Player'),
+    const WindowOptions(minimumSize: Size(460, 380), title: 'MaxTune Player'),
     () async {
       await windowManager.show();
       await windowManager.focus();
@@ -34,7 +37,7 @@ class _MaxTunePlayerState extends ConsumerState<MaxTunePlayer> {
 
       theme: AppThemes.light,
       darkTheme: AppThemes.dark,
-      themeMode: .system,
+      themeMode: .light,
       home: AppView(),
       debugShowCheckedModeBanner: false,
     );
