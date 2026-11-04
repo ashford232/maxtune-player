@@ -6,7 +6,7 @@ import 'package:maxtune_player/app/views/controls.dart';
 import 'package:maxtune_player/features/Settings/settings.dart';
 import 'package:maxtune_player/features/home/home.dart';
 import 'package:maxtune_player/app/views/sidebar.dart';
-import 'package:maxtune_player/features/library/library.dart';
+import 'package:maxtune_player/features/library/views/library.dart';
 
 class AppView extends ConsumerStatefulWidget {
   const AppView({super.key});
@@ -110,13 +110,13 @@ final navItems = [
     id: 1,
     icon: HugeIconsStroke.folderLibrary,
     activeIcon: HugeIconsSolid.folderLibrary,
-    widget: Library(),
+    widget: LibraryView(),
   ),
   Nav(
-    name: 'Playlist',
+    name: 'Playlists',
     id: 2,
-    icon: HugeIconsStroke.playlist01,
-    activeIcon: HugeIconsSolid.playlist01,
+    icon: HugeIconsStroke.playlist02,
+    activeIcon: HugeIconsSolid.playlist02,
     widget: Settings(),
   ),
   Nav(

@@ -1,6 +1,4 @@
 import 'dart:io';
-
-import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +9,7 @@ import 'package:maxtune_player/app/services/music_service.dart';
 import 'package:maxtune_player/app/views/controls.dart';
 import 'package:maxtune_player/app/views/player_view.dart';
 import 'package:maxtune_player/app/widgets/audio_visualizer.dart';
+import 'package:maxtune_player/features/library/services/library_provider.dart';
 import 'package:path/path.dart' as p;
 
 class Home extends ConsumerStatefulWidget {
@@ -23,15 +22,6 @@ class Home extends ConsumerStatefulWidget {
 class _HomeState extends ConsumerState<Home> {
   MusicState get musicService => ref.watch(musicServiceProvider);
   MusicService get musicNotifier => ref.watch(musicServiceProvider.notifier);
-
-  @override
-  void dispose() {
-    if (musicNotifier.audioPlayer.state.playing) {
-      musicNotifier.togglePlayPause();
-    }
-    musicNotifier.disposePlayer();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,17 +85,20 @@ class _HomeState extends ConsumerState<Home> {
                                 ElevatedButton(
                                   onPressed: () async {
                                     final res = await openFiles();
+                                    final songs = await ref
+                                        .watch(libraryServiceProvider)
+                                        .getSongTrack(files: res);
                                     musicNotifier.changeState(
                                       music: musicService.copyWith(
-                                        library: res,
-                                        current: res.isNotEmpty
-                                            ? res.first
+                                        library: songs,
+                                        current: songs.isNotEmpty
+                                            ? songs.first
                                             : null,
                                       ),
                                     );
 
                                     if (res.isNotEmpty) {
-                                      musicNotifier.playTrack(res.first);
+                                      musicNotifier.playTrack(songs.first);
                                     }
                                   },
                                   child: const Text('Open file(s)'),
@@ -125,13 +118,18 @@ class _HomeState extends ConsumerState<Home> {
                         ),
                         itemCount: musicService.library.length,
                         itemBuilder: (context, index) {
-                          final currentTrack = File(musicService.current!.path);
-                          final track = File(musicService.library[index].path);
-                          final metadata = readMetadata(track, getImage: true);
-                          final fileName = p.basename(track.path);
+                          final currentTrack = File(
+                            musicService.current!.track.path,
+                          );
+                          final track = musicService.library[index];
+                          final trackFile = File(
+                            musicService.library[index].track.path,
+                          );
+                          final metadata = track.metadata;
+                          final fileName = p.basename(trackFile.path);
                           final isCurrentPlaying =
-                              track.path == currentTrack.path;
-                          if (!track.existsSync()) {
+                              trackFile.path == currentTrack.path;
+                          if (!trackFile.existsSync()) {
                             return SizedBox.shrink();
                           }
                           return InkWell(
@@ -142,7 +140,7 @@ class _HomeState extends ConsumerState<Home> {
                                 context.push(PlayerView());
                                 return;
                               }
-                              await musicNotifier.playTrack(XFile(track.path));
+                              await musicNotifier.playTrack(track);
                             },
                             child: Container(
                               decoration: BoxDecoration(
@@ -160,9 +158,9 @@ class _HomeState extends ConsumerState<Home> {
                                 children: [
                                   Expanded(
                                     child: SizedBox(
-                                      child: metadata.pictures.isNotEmpty
+                                      child: metadata.image != null
                                           ? Image.memory(
-                                              metadata.pictures.first.bytes,
+                                              metadata.image!,
                                               fit: .cover,
                                               cacheHeight: 100,
                                               cacheWidth: 100,
@@ -220,15 +218,20 @@ class _HomeState extends ConsumerState<Home> {
                           const SizedBox(height: 2),
                       itemCount: musicService.library.length,
                       itemBuilder: (context, index) {
-                        final currentTrack = File(musicService.current!.path);
-                        final track = File(musicService.library[index].path);
-                        if (!track.existsSync()) {
+                        final currentTrack = File(
+                          musicService.current!.track.path,
+                        );
+                        final track = musicService.library[index];
+                        final trackFile = File(
+                          musicService.library[index].track.path,
+                        );
+                        if (!trackFile.existsSync()) {
                           return SizedBox.shrink();
                         }
-                        final metadata = readMetadata(track, getImage: true);
-                        final fileName = p.basename(track.path);
+                        final metadata = track.metadata;
+                        final fileName = p.basename(trackFile.path);
                         final isCurrentPlaying =
-                            track.path == currentTrack.path;
+                            trackFile.path == currentTrack.path;
                         final double size = isSmall
                             ? 30
                             : isCompact
@@ -242,7 +245,7 @@ class _HomeState extends ConsumerState<Home> {
                               context.push(PlayerView());
                               return;
                             }
-                            await musicNotifier.playTrack(XFile(track.path));
+                            await musicNotifier.playTrack(track);
                           },
                           child: Container(
                             decoration: BoxDecoration(
@@ -264,9 +267,9 @@ class _HomeState extends ConsumerState<Home> {
                                     SizedBox(
                                       width: size,
                                       height: size,
-                                      child: metadata.pictures.isNotEmpty
+                                      child: metadata.image != null
                                           ? Image.memory(
-                                              metadata.pictures.first.bytes,
+                                              metadata.image!,
                                               fit: .cover,
                                               cacheHeight: 100,
                                               cacheWidth: 100,

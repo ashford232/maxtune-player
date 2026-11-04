@@ -1,18 +1,20 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:maxtune_player/features/library/services/library_notifier.dart';
 import 'package:mpv_audio_kit/mpv_audio_kit.dart';
 import 'package:path/path.dart' as p;
 
 class MusicService extends Notifier<MusicState> {
   late final Player audioPlayer;
+  final List<StreamSubscription> _subscriptions = [];
 
   @override
   MusicState build() {
     audioPlayer = Player();
+
     audioPlayer.setSpectrum(
       const SpectrumSettings(
         fftSize: 2048,
@@ -28,90 +30,159 @@ class MusicService extends Notifier<MusicState> {
         overlapFactor: 4,
       ),
     );
+
     audioPlayer.setMediaSession(const MediaSession());
 
-    audioPlayer.stream.mediaSessionCommands.listen((command) {
-      if (command is MediaSessionCommandNext) {
-        playNext();
-      } else if (command is MediaSessionCommandPrevious) {
-        playPrevious();
-      } else if (command is MediaSessionCommandPlay) {
-        audioPlayer.play();
-      } else if (command is MediaSessionCommandPause) {
-        audioPlayer.pause();
-      } else if (command is MediaSessionCommandPlayPause) {
-        togglePlayPause();
-      }
-    });
-
-    audioPlayer.stream.playlist.listen((playlist) {
-      if (playlist.index >= 0 && playlist.index < state.library.length) {
-        final activeFile = state.library[playlist.index];
-        if (state.current?.path != activeFile.path) {
-          state = state.copyWith(current: activeFile);
-
-          // Update OS lock-screen metadata for the new track
-          final fileName = p.basename(activeFile.path);
-          audioPlayer.setMediaSession(
-            MediaSession(title: fileName, artist: 'Maxtune Player'),
-          );
+    _subscriptions.add(
+      audioPlayer.stream.mediaSessionCommands.listen((command) {
+        if (command is MediaSessionCommandNext) {
+          playNext();
+        } else if (command is MediaSessionCommandPrevious) {
+          playPrevious();
+        } else if (command is MediaSessionCommandPlay) {
+          audioPlayer.play();
+        } else if (command is MediaSessionCommandPause) {
+          audioPlayer.pause();
+        } else if (command is MediaSessionCommandPlayPause) {
+          togglePlayPause();
         }
-      }
-    });
+      }),
+    );
 
-    // 4. Track playback state changes
-    audioPlayer.stream.playing.listen((isPlaying) {
-      state = state.copyWith(isPlaying: isPlaying);
-    });
+    _subscriptions.add(
+      audioPlayer.stream.playlist.listen((playlist) {
+        if (playlist.index >= 0 && playlist.index < state.library.length) {
+          final activeFile = state.library[playlist.index];
+          if (state.current?.track.path != activeFile.track.path) {
+            state = state.copyWith(current: activeFile);
+
+            // Update OS lock-screen metadata for the new track
+            final fileName = p.basename(activeFile.track.path);
+            audioPlayer.setMediaSession(
+              MediaSession(title: fileName, artist: 'Maxtune Player'),
+            );
+          }
+        }
+      }),
+    );
+
+    _subscriptions.add(
+      audioPlayer.stream.playing.listen((isPlaying) {
+        state = state.copyWith(isPlaying: isPlaying);
+      }),
+    );
 
     ref.onDispose(() {
+      for (final sub in _subscriptions) {
+        sub.cancel();
+      }
       audioPlayer.dispose();
     });
 
     return MusicState();
   }
 
-  Future<void> disposePlayer() async {
-    await audioPlayer.dispose();
+  @override
+  bool updateShouldNotify(MusicState previous, MusicState next) {
+    return previous.isPlaying != next.isPlaying ||
+        previous.volume != next.volume ||
+        previous.current?.track.path != next.current?.track.path ||
+        previous.library.length != next.library.length;
   }
 
-  Future<void> playFromLibrary(List<XFile> library, XFile targetFile) async {
+  void addToLibrary(SongTrack file) {
+    state = state.copyWith(library: [...state.library, file]);
+  }
+
+  Future<void> playFromLibrary(
+    List<SongTrack> library,
+    SongTrack targetFile,
+  ) async {
+    final targetIndex = library.indexWhere(
+      (track) => track.track.path == targetFile.track.path,
+    );
+
+    if (targetIndex == -1) {
+      debugPrint('Selected song not found in library.');
+      return;
+    }
+
     try {
-      state = state.copyWith(library: library);
+      final mediaList = library.map((file) => Media(file.track.path)).toList();
 
-      final mediaList = library.map((file) => Media(file.path)).toList();
-      final targetIndex = library.indexWhere(
-        (file) => file.path == targetFile.path,
+      await audioPlayer.openAll(mediaList, index: targetIndex);
+      await audioPlayer.play();
+
+      state = state.copyWith(current: targetFile, isPlaying: true);
+
+      final fileName = p.basename(targetFile.track.path);
+      await audioPlayer.setMediaSession(
+        MediaSession(title: fileName, artist: 'Maxtune Player'),
       );
-
-      if (targetIndex != -1) {
-        await audioPlayer.openAll(mediaList, index: targetIndex);
-        await audioPlayer.play();
-
-        state = state.copyWith(current: targetFile, isPlaying: true);
-
-        final fileName = p.basename(targetFile.path);
-        await audioPlayer.setMediaSession(
-          MediaSession(title: fileName, artist: 'Maxtune Player'),
-        );
-      }
-    } catch (e) {
-      debugPrint(e.toString());
+    } catch (e, st) {
+      debugPrint('Error playing from library: $e');
+      debugPrintStack(stackTrace: st);
     }
   }
 
+  Future<void> playTrack(SongTrack file) async {
+    try {
+      if (!await File(file.track.path).exists()) {
+        debugPrint('File does not exist: ${file.track.path}');
+        return;
+      }
+
+      final exists = state.library.any(
+        (song) => song.track.path == file.track.path,
+      );
+
+      final updatedLibrary = exists ? state.library : [...state.library, file];
+
+      if (!exists) {
+        state = state.copyWith(library: updatedLibrary);
+      }
+
+      await playFromLibrary(updatedLibrary, file);
+    } catch (e, st) {
+      debugPrint('Playback error: $e');
+      debugPrintStack(stackTrace: st);
+    }
+  }
+
+  Future<void> togglePlayPause() async {
+    if (audioPlayer.state.playing) {
+      await audioPlayer.pause();
+    } else {
+      await audioPlayer.play();
+    }
+  }
+
+  Future<void> seek(Duration position) async {
+    await audioPlayer.seek(position);
+  }
+
+  Future<void> setVolume(double volume) async {
+    await audioPlayer.setVolume(volume * 100.0);
+    state = state.copyWith(volume: volume);
+  }
+
+  Future<void> playNext() async {
+    await audioPlayer.nextPlaylist();
+  }
+
+  Future<void> playPrevious() async {
+    await audioPlayer.previousPlaylist();
+  }
+
   Future<void> removeMissingFiles() async {
-    final validFiles = <XFile>[];
-    XFile? activeTrack = state.current;
+    final validFiles = <SongTrack>[];
+    SongTrack? activeTrack = state.current;
 
     for (final file in state.library) {
-      if (await File(file.path).exists()) {
+      if (await File(file.track.path).exists()) {
         validFiles.add(file);
-      } else {
-        // If the currently playing file was deleted, mark it null
-        if (state.current?.path == file.path) {
-          activeTrack = null;
-        }
+      } else if (state.current?.track.path == file.track.path) {
+        activeTrack = null;
       }
     }
 
@@ -119,12 +190,12 @@ class MusicService extends Notifier<MusicState> {
       state = state.copyWith(library: validFiles, current: activeTrack);
 
       if (validFiles.isNotEmpty) {
-        final mediaList = validFiles.map((f) => Media(f.path)).toList();
-
+        final mediaList = validFiles.map((f) => Media(f.track.path)).toList();
         int targetIndex = 0;
+
         if (activeTrack != null) {
           targetIndex = validFiles.indexWhere(
-            (f) => f.path == activeTrack!.path,
+            (f) => f.track.path == activeTrack!.track.path,
           );
           if (targetIndex == -1) targetIndex = 0;
         }
@@ -137,52 +208,6 @@ class MusicService extends Notifier<MusicState> {
     }
   }
 
-  Future<void> playTrack(XFile file) async {
-    if (state.library.isNotEmpty) {
-      await removeMissingFiles();
-      await playFromLibrary(state.library, file);
-    } else {
-      try {
-        await audioPlayer.open(Media(file.path));
-        await audioPlayer.play();
-        state = state.copyWith(current: file, isPlaying: true);
-      } catch (e) {
-        debugPrint(e.toString());
-      }
-    }
-  }
-
-  Future<void> togglePlayPause() async {
-    await removeMissingFiles();
-    if (audioPlayer.state.playing) {
-      await audioPlayer.pause();
-    } else {
-      await audioPlayer.play();
-    }
-  }
-
-  Future<void> seek(Duration position) async {
-    await removeMissingFiles();
-    await audioPlayer.seek(position);
-  }
-
-  Future<void> setVolume(double volume) async {
-    await audioPlayer.setVolume(volume * 100.0);
-    state = state.copyWith(volume: volume);
-  }
-
-  Future<void> playNext() async {
-    await removeMissingFiles();
-
-    await audioPlayer.nextPlaylist();
-  }
-
-  Future<void> playPrevious() async {
-    await removeMissingFiles();
-
-    await audioPlayer.previousPlaylist();
-  }
-
   void changeState({required MusicState music}) {
     state = music;
   }
@@ -191,10 +216,10 @@ class MusicService extends Notifier<MusicState> {
 class MusicState {
   final bool isPlaying;
   final double volume;
-  final List<XFile> library;
-  final XFile? current;
+  final List<SongTrack> library;
+  final SongTrack? current;
 
-  MusicState({
+  const MusicState({
     this.isPlaying = false,
     this.volume = 0.8,
     this.library = const [],
@@ -204,8 +229,8 @@ class MusicState {
   MusicState copyWith({
     bool? isPlaying,
     double? volume,
-    List<XFile>? library,
-    XFile? current,
+    List<SongTrack>? library,
+    SongTrack? current,
   }) {
     return MusicState(
       isPlaying: isPlaying ?? this.isPlaying,

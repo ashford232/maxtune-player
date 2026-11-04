@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons_pro/hugeicons.dart';
@@ -8,7 +7,6 @@ import 'package:lite_router/lite_router.dart';
 import 'package:maxtune_player/app/services/app_providers.dart';
 import 'package:maxtune_player/app/services/music_service.dart';
 import 'package:maxtune_player/app/views/player_view.dart';
-import 'package:maxtune_player/app/widgets/audio_visualizer.dart';
 import 'package:path/path.dart' as p;
 
 class ControlsView extends ConsumerStatefulWidget {
@@ -27,25 +25,19 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
   MusicService get musicNotifier => ref.watch(musicServiceProvider.notifier);
 
   @override
-  void dispose() {
-    if (musicNotifier.audioPlayer.state.playing) {
-      musicNotifier.togglePlayPause();
-    }
-    musicNotifier.disposePlayer();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     final current = musicService.current;
-    final fileName = current?.path == null ? "" : p.basename(current!.path);
-    File? track = current?.path == null ? null : File(current!.path);
+    final fileName = current?.track.path == null
+        ? ""
+        : p.basename(current!.track.path);
+    File? track = current?.track.path == null
+        ? null
+        : File(current!.track.path);
     if (track != null && !track.existsSync()) {
       track = null;
     }
-    final metadata = track == null ? null : readMetadata(track, getImage: true);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -53,14 +45,8 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12),
           child: isSmall
-              ? _buildCompactPlayer(theme, metadata, fileName, current != null)
-              : _buildExpandedPlayer(
-                  theme,
-                  metadata,
-                  fileName,
-                  current != null,
-                  isSmall,
-                ),
+              ? _buildCompactPlayer(theme, fileName, current != null)
+              : _buildExpandedPlayer(theme, fileName, current != null, isSmall),
         );
       },
     );
@@ -69,9 +55,7 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
   Widget _buildAlbumArtButton({bool isCompact = false}) {
     return Builder(
       builder: (context) {
-        final metadata = musicService.current == null
-            ? null
-            : readMetadata(File(musicService.current!.path), getImage: true);
+        final metadata = musicService.current?.metadata;
         final double size = isCompact ? 50 : 70;
         final theme = Theme.of(context);
         return ClipRRect(
@@ -84,9 +68,9 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
             ),
             width: size,
             height: size,
-            child: metadata?.pictures.isNotEmpty ?? false
+            child: metadata?.image != null
                 ? Image.memory(
-                    metadata!.pictures.first.bytes,
+                    metadata!.image!,
                     fit: .cover,
                     cacheHeight: 100,
                     cacheWidth: 100,
@@ -102,11 +86,12 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
   }
 
   Widget _buildTrackInfo({
-    required AudioMetadata? metadata,
     required String fileName,
     required bool hasCurrent,
     bool isCompact = false,
   }) {
+    final metadata = musicService.current?.metadata;
+
     final title = hasCurrent
         ? metadata?.title ?? (fileName.isNotEmpty ? fileName : "Unknown")
         : 'Playing something';
@@ -220,7 +205,6 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
 
   Widget _buildCompactPlayer(
     ThemeData theme,
-    AudioMetadata? metadata,
     String fileName,
     bool hasCurrent,
   ) {
@@ -239,7 +223,6 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildTrackInfo(
-                  metadata: metadata,
                   fileName: fileName,
                   hasCurrent: hasCurrent,
                   isCompact: true,
@@ -256,7 +239,6 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
 
   Widget _buildExpandedPlayer(
     ThemeData theme,
-    AudioMetadata? metadata,
     String fileName,
     bool hasCurrent,
     bool isSmall,
@@ -280,11 +262,7 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildTrackInfo(
-                metadata: metadata,
-                fileName: fileName,
-                hasCurrent: hasCurrent,
-              ),
+              _buildTrackInfo(fileName: fileName, hasCurrent: hasCurrent),
               const SizedBox(height: 4),
 
               StreamBuilder<Duration>(
@@ -312,13 +290,7 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: widget.isPlayer == true && !isSmall
-                                ? SizedBox(
-                                    width: 10,
-                                    child: AudioVisualizer(
-                                      player: player,
-                                      width: 100,
-                                    ),
-                                  )
+                                ? SizedBox()
                                 : SizedBox(
                                     height: 20,
                                     child: SliderTheme(

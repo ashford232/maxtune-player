@@ -23,7 +23,7 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
     final theme = Theme.of(context);
     final track = musicService.current == null
         ? null
-        : File(musicService.current!.path);
+        : File(musicService.current!.track.path);
     final fileExists = track?.existsSync() ?? false;
 
     if (!fileExists) {
@@ -64,7 +64,7 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12.0,
+                              horizontal: 2.0,
                             ),
 
                             child: Container(
@@ -75,13 +75,14 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
                               child: WaveformSeekBar(
                                 player: musicNotifier.audioPlayer,
                                 showTime: false,
-                                height: !isSmall ? 168 : 132,
+                                height: !isSmall ? 145 : 120,
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                    Divider(height: 1),
                     ControlsView(isPlayer: true),
                   ],
                 );
