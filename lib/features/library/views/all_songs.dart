@@ -44,7 +44,7 @@ class _AllSongsState extends ConsumerState<AllSongs> {
               if (allSongsAsync.value?.isNotEmpty ?? false)
                 TextButton.icon(
                   label: Text(
-                    isRefreshing ? 'Refreshing' : 'Refresh',
+                    isRefreshing ? '' : 'Refresh',
                     style: TextStyle(fontSize: 12),
                   ),
                   onPressed: isRefreshing
@@ -62,7 +62,7 @@ class _AllSongsState extends ConsumerState<AllSongs> {
                           }
                         },
                   icon: isRefreshing
-                      ? const CupertinoActivityIndicator()
+                      ? const CupertinoActivityIndicator(radius: 8)
                       : const Icon(HugeIconsStroke.refresh, size: 13),
                 ),
               const SizedBox(width: 12),

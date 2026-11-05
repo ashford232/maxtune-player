@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maxtune_player/core/db/app_database.dart';
 import 'package:maxtune_player/core/db/operations/play_history_operations.dart';
 import 'package:maxtune_player/core/db/operations/playlist_operation.dart';
+import 'package:maxtune_player/core/db/operations/settings_operation.dart';
 import 'package:maxtune_player/core/db/operations/song_operations.dart';
 
 final databaseProvider = Provider((ref) {
@@ -61,6 +62,14 @@ final getAllRecentHistoryProvider = FutureProvider(
 );
 final watchAllRecentHistoryProvider = StreamProvider(
   (ref) => ref.watch(playHistoryOperationProvider).watchRecentHistory(),
+);
+
+final settingsOperationProvider = Provider(
+  (ref) => SettingsOperation(db: ref.watch(databaseProvider)),
+);
+
+final themeProvider = StreamProvider(
+  (ref) => ref.watch(settingsOperationProvider).watchSettings(),
 );
 
 //

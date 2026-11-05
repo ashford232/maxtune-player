@@ -1028,12 +1028,309 @@ class PlayHistoryCompanion extends UpdateCompanion<PlayHistoryData> {
   }
 }
 
+class $SettingsTableTable extends SettingsTable
+    with TableInfo<$SettingsTableTable, AppSetting> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SettingsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _themeMeta = const VerificationMeta('theme');
+  @override
+  late final GeneratedColumn<String> theme = GeneratedColumn<String>(
+    'theme',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('system'),
+  );
+  static const VerificationMeta _playbackSpeedMeta = const VerificationMeta(
+    'playbackSpeed',
+  );
+  @override
+  late final GeneratedColumn<double> playbackSpeed = GeneratedColumn<double>(
+    'playback_speed',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1.0),
+  );
+  static const VerificationMeta _pitchMeta = const VerificationMeta('pitch');
+  @override
+  late final GeneratedColumn<double> pitch = GeneratedColumn<double>(
+    'pitch',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1.0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, theme, playbackSpeed, pitch];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'settings_table';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AppSetting> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('theme')) {
+      context.handle(
+        _themeMeta,
+        theme.isAcceptableOrUnknown(data['theme']!, _themeMeta),
+      );
+    }
+    if (data.containsKey('playback_speed')) {
+      context.handle(
+        _playbackSpeedMeta,
+        playbackSpeed.isAcceptableOrUnknown(
+          data['playback_speed']!,
+          _playbackSpeedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('pitch')) {
+      context.handle(
+        _pitchMeta,
+        pitch.isAcceptableOrUnknown(data['pitch']!, _pitchMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AppSetting map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AppSetting(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      theme: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}theme'],
+      )!,
+      playbackSpeed: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}playback_speed'],
+      )!,
+      pitch: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}pitch'],
+      )!,
+    );
+  }
+
+  @override
+  $SettingsTableTable createAlias(String alias) {
+    return $SettingsTableTable(attachedDatabase, alias);
+  }
+}
+
+class AppSetting extends DataClass implements Insertable<AppSetting> {
+  final int id;
+  final String theme;
+  final double playbackSpeed;
+  final double pitch;
+  const AppSetting({
+    required this.id,
+    required this.theme,
+    required this.playbackSpeed,
+    required this.pitch,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['theme'] = Variable<String>(theme);
+    map['playback_speed'] = Variable<double>(playbackSpeed);
+    map['pitch'] = Variable<double>(pitch);
+    return map;
+  }
+
+  SettingsTableCompanion toCompanion(bool nullToAbsent) {
+    return SettingsTableCompanion(
+      id: Value(id),
+      theme: Value(theme),
+      playbackSpeed: Value(playbackSpeed),
+      pitch: Value(pitch),
+    );
+  }
+
+  factory AppSetting.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AppSetting(
+      id: serializer.fromJson<int>(json['id']),
+      theme: serializer.fromJson<String>(json['theme']),
+      playbackSpeed: serializer.fromJson<double>(json['playbackSpeed']),
+      pitch: serializer.fromJson<double>(json['pitch']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'theme': serializer.toJson<String>(theme),
+      'playbackSpeed': serializer.toJson<double>(playbackSpeed),
+      'pitch': serializer.toJson<double>(pitch),
+    };
+  }
+
+  AppSetting copyWith({
+    int? id,
+    String? theme,
+    double? playbackSpeed,
+    double? pitch,
+  }) => AppSetting(
+    id: id ?? this.id,
+    theme: theme ?? this.theme,
+    playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+    pitch: pitch ?? this.pitch,
+  );
+  AppSetting copyWithCompanion(SettingsTableCompanion data) {
+    return AppSetting(
+      id: data.id.present ? data.id.value : this.id,
+      theme: data.theme.present ? data.theme.value : this.theme,
+      playbackSpeed: data.playbackSpeed.present
+          ? data.playbackSpeed.value
+          : this.playbackSpeed,
+      pitch: data.pitch.present ? data.pitch.value : this.pitch,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AppSetting(')
+          ..write('id: $id, ')
+          ..write('theme: $theme, ')
+          ..write('playbackSpeed: $playbackSpeed, ')
+          ..write('pitch: $pitch')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, theme, playbackSpeed, pitch);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AppSetting &&
+          other.id == this.id &&
+          other.theme == this.theme &&
+          other.playbackSpeed == this.playbackSpeed &&
+          other.pitch == this.pitch);
+}
+
+class SettingsTableCompanion extends UpdateCompanion<AppSetting> {
+  final Value<int> id;
+  final Value<String> theme;
+  final Value<double> playbackSpeed;
+  final Value<double> pitch;
+  const SettingsTableCompanion({
+    this.id = const Value.absent(),
+    this.theme = const Value.absent(),
+    this.playbackSpeed = const Value.absent(),
+    this.pitch = const Value.absent(),
+  });
+  SettingsTableCompanion.insert({
+    this.id = const Value.absent(),
+    this.theme = const Value.absent(),
+    this.playbackSpeed = const Value.absent(),
+    this.pitch = const Value.absent(),
+  });
+  static Insertable<AppSetting> custom({
+    Expression<int>? id,
+    Expression<String>? theme,
+    Expression<double>? playbackSpeed,
+    Expression<double>? pitch,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (theme != null) 'theme': theme,
+      if (playbackSpeed != null) 'playback_speed': playbackSpeed,
+      if (pitch != null) 'pitch': pitch,
+    });
+  }
+
+  SettingsTableCompanion copyWith({
+    Value<int>? id,
+    Value<String>? theme,
+    Value<double>? playbackSpeed,
+    Value<double>? pitch,
+  }) {
+    return SettingsTableCompanion(
+      id: id ?? this.id,
+      theme: theme ?? this.theme,
+      playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+      pitch: pitch ?? this.pitch,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (theme.present) {
+      map['theme'] = Variable<String>(theme.value);
+    }
+    if (playbackSpeed.present) {
+      map['playback_speed'] = Variable<double>(playbackSpeed.value);
+    }
+    if (pitch.present) {
+      map['pitch'] = Variable<double>(pitch.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SettingsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('theme: $theme, ')
+          ..write('playbackSpeed: $playbackSpeed, ')
+          ..write('pitch: $pitch')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $SongsTable songs = $SongsTable(this);
   late final $PlaylistsTable playlists = $PlaylistsTable(this);
   late final $PlayHistoryTable playHistory = $PlayHistoryTable(this);
+  late final $SettingsTableTable settingsTable = $SettingsTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1042,6 +1339,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     songs,
     playlists,
     playHistory,
+    settingsTable,
   ];
 }
 
@@ -1632,6 +1930,192 @@ typedef $$PlayHistoryTableProcessedTableManager =
       PlayHistoryData,
       PrefetchHooks Function()
     >;
+typedef $$SettingsTableTableCreateCompanionBuilder =
+    SettingsTableCompanion Function({
+      Value<int> id,
+      Value<String> theme,
+      Value<double> playbackSpeed,
+      Value<double> pitch,
+    });
+typedef $$SettingsTableTableUpdateCompanionBuilder =
+    SettingsTableCompanion Function({
+      Value<int> id,
+      Value<String> theme,
+      Value<double> playbackSpeed,
+      Value<double> pitch,
+    });
+
+class $$SettingsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $SettingsTableTable> {
+  $$SettingsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get theme => $composableBuilder(
+    column: $table.theme,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get playbackSpeed => $composableBuilder(
+    column: $table.playbackSpeed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get pitch => $composableBuilder(
+    column: $table.pitch,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SettingsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $SettingsTableTable> {
+  $$SettingsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get theme => $composableBuilder(
+    column: $table.theme,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get playbackSpeed => $composableBuilder(
+    column: $table.playbackSpeed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get pitch => $composableBuilder(
+    column: $table.pitch,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SettingsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SettingsTableTable> {
+  $$SettingsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get theme =>
+      $composableBuilder(column: $table.theme, builder: (column) => column);
+
+  GeneratedColumn<double> get playbackSpeed => $composableBuilder(
+    column: $table.playbackSpeed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get pitch =>
+      $composableBuilder(column: $table.pitch, builder: (column) => column);
+}
+
+class $$SettingsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SettingsTableTable,
+          AppSetting,
+          $$SettingsTableTableFilterComposer,
+          $$SettingsTableTableOrderingComposer,
+          $$SettingsTableTableAnnotationComposer,
+          $$SettingsTableTableCreateCompanionBuilder,
+          $$SettingsTableTableUpdateCompanionBuilder,
+          (
+            AppSetting,
+            BaseReferences<_$AppDatabase, $SettingsTableTable, AppSetting>,
+          ),
+          AppSetting,
+          PrefetchHooks Function()
+        > {
+  $$SettingsTableTableTableManager(_$AppDatabase db, $SettingsTableTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SettingsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SettingsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SettingsTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> theme = const Value.absent(),
+                Value<double> playbackSpeed = const Value.absent(),
+                Value<double> pitch = const Value.absent(),
+              }) => SettingsTableCompanion(
+                id: id,
+                theme: theme,
+                playbackSpeed: playbackSpeed,
+                pitch: pitch,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> theme = const Value.absent(),
+                Value<double> playbackSpeed = const Value.absent(),
+                Value<double> pitch = const Value.absent(),
+              }) => SettingsTableCompanion.insert(
+                id: id,
+                theme: theme,
+                playbackSpeed: playbackSpeed,
+                pitch: pitch,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SettingsTableTable, AppSetting>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $SettingsTableTable,
+                    AppSetting
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SettingsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SettingsTableTable,
+      AppSetting,
+      $$SettingsTableTableFilterComposer,
+      $$SettingsTableTableOrderingComposer,
+      $$SettingsTableTableAnnotationComposer,
+      $$SettingsTableTableCreateCompanionBuilder,
+      $$SettingsTableTableUpdateCompanionBuilder,
+      (
+        AppSetting,
+        BaseReferences<_$AppDatabase, $SettingsTableTable, AppSetting>,
+      ),
+      AppSetting,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -1642,4 +2126,6 @@ class $AppDatabaseManager {
       $$PlaylistsTableTableManager(_db, _db.playlists);
   $$PlayHistoryTableTableManager get playHistory =>
       $$PlayHistoryTableTableManager(_db, _db.playHistory);
+  $$SettingsTableTableTableManager get settingsTable =>
+      $$SettingsTableTableTableManager(_db, _db.settingsTable);
 }

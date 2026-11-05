@@ -77,7 +77,7 @@ class _AllSongsState extends ConsumerState<RecentlyPlayedSongs> {
                                   return ref
                                       .watch(
                                         watchSongProvider(
-                                          libraryData[index].songId,
+                                          libraryData[index].path,
                                         ),
                                       )
                                       .when(
@@ -109,7 +109,7 @@ class _AllSongsState extends ConsumerState<RecentlyPlayedSongs> {
                                 return ref
                                     .watch(
                                       watchSongProvider(
-                                        libraryData[index].songId,
+                                        libraryData[index].path,
                                       ),
                                     )
                                     .when(

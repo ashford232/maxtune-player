@@ -10,7 +10,7 @@ class PlayHistoryOperations {
     return db
         .into(db.playHistory)
         .insert(
-          PlayHistoryCompanion.insert(songId: path, addedAt: DateTime.now()),
+          PlayHistoryCompanion.insert(path: path, addedAt: DateTime.now()),
         );
   }
 

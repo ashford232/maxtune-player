@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons_pro/hugeicons.dart';
 import 'package:maxtune_player/app/services/app_providers.dart';
 import 'package:maxtune_player/app/services/music_service.dart';
 import 'package:maxtune_player/core/db/services/database_provider.dart';
+import 'package:maxtune_player/features/library/services/library_provider.dart';
 import 'package:maxtune_player/features/library/views/all_songs.dart';
 
 class Home extends ConsumerStatefulWidget {
@@ -87,22 +89,15 @@ class _HomeState extends ConsumerState<Home> {
                                     const SizedBox(height: 14),
                                     ElevatedButton(
                                       onPressed: () async {
-                                        // final res = await openFiles();
-                                        // final songs = await ref
-                                        //     .watch(libraryServiceProvider)
-                                        //     .getSongTrack(files: res);
-                                        // musicNotifier.changeState(
-                                        //   music: musicService.copyWith(
-                                        //     library: songs,
-                                        //     current: songs.isNotEmpty
-                                        //         ? songs.first
-                                        //         : null,
-                                        //   ),
-                                        // );
+                                        final res = await openFiles();
+                                        final songs = await ref
+                                            .watch(libraryServiceProvider)
+                                            .getSongFromFile(res);
+                                          
 
-                                        // if (res.isNotEmpty) {
-                                        //   musicNotifier.playTrack(songs.first);
-                                        //  }
+                                        if (res.isNotEmpty) {
+                                          musicNotifier.playTrack(songs.first);
+                                        }
                                       },
                                       child: const Text('Open file(s)'),
                                     ),
@@ -122,10 +117,9 @@ class _HomeState extends ConsumerState<Home> {
                                 ),
                             itemCount: library.length,
                             itemBuilder: (context, index) {
-                            
                               final track = library[index];
                               final trackFile = File(library[index].path);
-                            
+
                               if (!trackFile.existsSync()) {
                                 return SizedBox.shrink();
                               }

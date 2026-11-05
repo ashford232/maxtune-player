@@ -80,6 +80,9 @@ class MusicService extends Notifier<MusicState> {
       }),
     );
 
+    // Initialize and listen to database settings
+    _initSettings();
+
     ref.onDispose(() {
       for (final sub in _subscriptions) {
         sub.cancel();
@@ -90,10 +93,44 @@ class MusicService extends Notifier<MusicState> {
     return const MusicState();
   }
 
+  Future<void> _initSettings() async {
+    try {
+      final settingsOps = ref.read(settingsOperationProvider);
+
+      // Fetch initial settings and apply them to the player
+      final initialSettings = await settingsOps.getSettings();
+      _applySettings(initialSettings);
+
+      // Watch for live settings updates from the database
+      _subscriptions.add(
+        settingsOps.watchSettings().listen((settings) {
+          _applySettings(settings);
+        }),
+      );
+    } catch (e, st) {
+      debugPrint('Error initializing settings in MusicService: $e');
+      debugPrintStack(stackTrace: st);
+    }
+  }
+
+  void _applySettings(AppSetting settings) {
+    // Apply speed and pitch directly to mpv audio player
+    audioPlayer.setRate(settings.playbackSpeed);
+    audioPlayer.setPitch(settings.pitch);
+
+    // Keep state updated with current settings
+    state = state.copyWith(
+      playbackSpeed: settings.playbackSpeed,
+      pitch: settings.pitch,
+    );
+  }
+
   @override
   bool updateShouldNotify(MusicState previous, MusicState next) {
     return previous.isPlaying != next.isPlaying ||
         previous.volume != next.volume ||
+        previous.playbackSpeed != next.playbackSpeed ||
+        previous.pitch != next.pitch ||
         previous.current?.path != next.current?.path;
   }
 
@@ -151,7 +188,7 @@ class MusicService extends Notifier<MusicState> {
           ),
         );
       }
-    await  historyOperations.addToHistory(file.path);
+      await historyOperations.addToHistory(file.path);
 
       final updatedQueue = await songOperations.getAllSongs();
       await playSongs(updatedQueue.isEmpty ? [file] : updatedQueue, file);
@@ -225,14 +262,30 @@ class MusicService extends Notifier<MusicState> {
 class MusicState {
   final bool isPlaying;
   final double volume;
+  final double playbackSpeed;
+  final double pitch;
   final Song? current;
 
-  const MusicState({this.isPlaying = false, this.volume = 0.8, this.current});
+  const MusicState({
+    this.isPlaying = false,
+    this.volume = 0.8,
+    this.playbackSpeed = 1.0,
+    this.pitch = 1.0,
+    this.current,
+  });
 
-  MusicState copyWith({bool? isPlaying, double? volume, Song? current}) {
+  MusicState copyWith({
+    bool? isPlaying,
+    double? volume,
+    double? playbackSpeed,
+    double? pitch,
+    Song? current,
+  }) {
     return MusicState(
       isPlaying: isPlaying ?? this.isPlaying,
       volume: volume ?? this.volume,
+      playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+      pitch: pitch ?? this.pitch,
       current: current ?? this.current,
     );
   }
