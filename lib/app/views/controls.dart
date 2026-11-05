@@ -7,6 +7,7 @@ import 'package:lite_router/lite_router.dart';
 import 'package:maxtune_player/app/services/app_providers.dart';
 import 'package:maxtune_player/app/services/music_service.dart';
 import 'package:maxtune_player/app/views/player_view.dart';
+import 'package:maxtune_player/core/db/services/database_provider.dart';
 import 'package:path/path.dart' as p;
 
 class ControlsView extends ConsumerStatefulWidget {
@@ -29,15 +30,12 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
     final theme = Theme.of(context);
 
     final current = musicService.current;
-    final fileName = current?.track.path == null
-        ? ""
-        : p.basename(current!.track.path);
-    File? track = current?.track.path == null
-        ? null
-        : File(current!.track.path);
+    final fileName = current?.path == null ? "" : p.basename(current!.path);
+    File? track = current?.path == null ? null : File(current!.path);
     if (track != null && !track.existsSync()) {
       track = null;
     }
+    final library = ref.watch(watchAllSongsProvider).value;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -45,8 +43,19 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12),
           child: isSmall
-              ? _buildCompactPlayer(theme, fileName, current != null)
-              : _buildExpandedPlayer(theme, fileName, current != null, isSmall),
+              ? _buildCompactPlayer(
+                  theme,
+                  fileName,
+                  current != null,
+                  library != null && library.isNotEmpty,
+                )
+              : _buildExpandedPlayer(
+                  theme,
+                  fileName,
+                  current != null,
+                  isSmall,
+                  library != null && library.isNotEmpty,
+                ),
         );
       },
     );
@@ -55,7 +64,6 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
   Widget _buildAlbumArtButton({bool isCompact = false}) {
     return Builder(
       builder: (context) {
-        final metadata = musicService.current?.metadata;
         final double size = isCompact ? 50 : 70;
         final theme = Theme.of(context);
         return ClipRRect(
@@ -68,9 +76,9 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
             ),
             width: size,
             height: size,
-            child: metadata?.image != null
+            child: musicService.current?.artwork != null
                 ? Image.memory(
-                    metadata!.image!,
+                    musicService.current!.artwork!,
                     fit: .cover,
                     cacheHeight: 100,
                     cacheWidth: 100,
@@ -90,10 +98,9 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
     required bool hasCurrent,
     bool isCompact = false,
   }) {
-    final metadata = musicService.current?.metadata;
-
     final title = hasCurrent
-        ? metadata?.title ?? (fileName.isNotEmpty ? fileName : "Unknown")
+        ? musicService.current?.title ??
+              (fileName.isNotEmpty ? fileName : "Unknown")
         : 'Playing something';
 
     return Column(
@@ -113,8 +120,8 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
     );
   }
 
-  Widget _buildPlaybackControls(ThemeData theme) {
-    final hasLibrary = musicService.library.isNotEmpty;
+  Widget _buildPlaybackControls({required bool hasLibrary}) {
+    final theme = Theme.of(context);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -207,6 +214,7 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
     ThemeData theme,
     String fileName,
     bool hasCurrent,
+    bool hasLibrary,
   ) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -232,7 +240,7 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
           ),
         ),
         const SizedBox(height: 10),
-        _buildPlaybackControls(theme),
+        _buildPlaybackControls(hasLibrary: hasLibrary),
       ],
     );
   }
@@ -241,6 +249,7 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
     ThemeData theme,
     String fileName,
     bool hasCurrent,
+    bool hasLibrary,
     bool isSmall,
   ) {
     return Row(
@@ -335,7 +344,7 @@ class _ControlsViewState extends ConsumerState<ControlsView> {
         ),
 
         const SizedBox(width: 20),
-        _buildPlaybackControls(theme),
+        _buildPlaybackControls(hasLibrary: hasLibrary),
         const SizedBox(width: 20),
         _buildVolumeControl(),
       ],

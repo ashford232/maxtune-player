@@ -9,9 +9,10 @@ import 'package:maxtune_player/app/services/music_service.dart';
 import 'package:maxtune_player/app/views/controls.dart';
 import 'package:maxtune_player/app/views/player_view.dart';
 import 'package:maxtune_player/app/widgets/audio_visualizer.dart';
-import 'package:maxtune_player/features/library/services/library_notifier.dart';
+import 'package:maxtune_player/core/db/app_database.dart';
+import 'package:maxtune_player/core/db/operations/song_operations.dart';
+import 'package:maxtune_player/core/db/services/database_provider.dart';
 import 'package:maxtune_player/features/library/services/library_provider.dart';
-import 'package:path/path.dart' as p;
 
 class AllSongs extends ConsumerStatefulWidget {
   const AllSongs({super.key});
@@ -25,10 +26,11 @@ class _AllSongsState extends ConsumerState<AllSongs> {
 
   @override
   Widget build(BuildContext context) {
-    final library = ref.watch(libraryProvider);
-    final libraryNotifier = ref.read(libraryProvider.notifier);
+    final allSongsAsync = ref.watch(watchAllSongsProvider);
+    final libraryService = ref.read(libraryServiceProvider);
     final musicService = ref.watch(musicServiceProvider);
     final musicNotifier = ref.read(musicServiceProvider.notifier);
+    final songOperations = ref.read(songsOperationProvider);
     final theme = Theme.of(context);
 
     return LayoutBuilder(
@@ -39,26 +41,30 @@ class _AllSongsState extends ConsumerState<AllSongs> {
         return Scaffold(
           appBar: AppBar(
             actions: [
-              TextButton.icon(
-                label: Text(isRefreshing ? 'Refreshing' : 'Refresh'),
-                onPressed: isRefreshing
-                    ? null
-                    : () async {
-                        try {
-                          setState(() => isRefreshing = true);
-                          await libraryNotifier.refresh();
-                        } catch (err) {
-                          debugPrint(err.toString());
-                        } finally {
-                          if (mounted) {
-                            setState(() => isRefreshing = false);
+              if (allSongsAsync.value?.isNotEmpty ?? false)
+                TextButton.icon(
+                  label: Text(
+                    isRefreshing ? 'Refreshing' : 'Refresh',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  onPressed: isRefreshing
+                      ? null
+                      : () async {
+                          try {
+                            setState(() => isRefreshing = true);
+                            await libraryService.refreshAllSongs();
+                          } catch (err) {
+                            debugPrint(err.toString());
+                          } finally {
+                            if (mounted) {
+                              setState(() => isRefreshing = false);
+                            }
                           }
-                        }
-                      },
-                icon: isRefreshing
-                    ? const CupertinoActivityIndicator()
-                    : const Icon(HugeIconsStroke.refresh),
-              ),
+                        },
+                  icon: isRefreshing
+                      ? const CupertinoActivityIndicator()
+                      : const Icon(HugeIconsStroke.refresh, size: 13),
+                ),
               const SizedBox(width: 12),
             ],
             leading: IconButton(
@@ -75,11 +81,42 @@ class _AllSongsState extends ConsumerState<AllSongs> {
             child: Column(
               children: [
                 Expanded(
-                  child: library.when(
+                  child: allSongsAsync.when(
                     data: (libraryData) {
-                      final songs = libraryData.allSongs;
+                      final songs = libraryData;
                       if (songs.isEmpty) {
-                        return const Center(child: Text("No songs found"));
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: .center,
+                            children: [
+                              const Text("No songs found"),
+                              const SizedBox(height: 20),
+
+                              ElevatedButton(
+                                onPressed: isRefreshing
+                                    ? null
+                                    : () async {
+                                        try {
+                                          setState(() => isRefreshing = true);
+                                          await libraryService
+                                              .refreshAllSongs();
+                                        } catch (err) {
+                                          debugPrint(err.toString());
+                                        } finally {
+                                          if (mounted) {
+                                            setState(
+                                              () => isRefreshing = false,
+                                            );
+                                          }
+                                        }
+                                      },
+                                child: Text(
+                                  isRefreshing ? "Finding Songs" : 'Find Songs',
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
                       }
 
                       return !isCompact
@@ -94,7 +131,8 @@ class _AllSongsState extends ConsumerState<AllSongs> {
                                     ),
                                 itemCount: songs.length,
                                 itemBuilder: (context, index) {
-                                  return _SongGridItem(
+                                  return SongGridItem(
+                                    songOperations: songOperations,
                                     song: songs[index],
                                     musicService: musicService,
                                     musicNotifier: musicNotifier,
@@ -110,7 +148,8 @@ class _AllSongsState extends ConsumerState<AllSongs> {
                                   const SizedBox(height: 2),
                               itemCount: songs.length,
                               itemBuilder: (context, index) {
-                                return _SongListItem(
+                                return SongListItem(
+                                  songOperations: songOperations,
                                   song: songs[index],
                                   musicService: musicService,
                                   musicNotifier: musicNotifier,
@@ -124,7 +163,7 @@ class _AllSongsState extends ConsumerState<AllSongs> {
                     error: (err, st) => Center(
                       child: SelectableRegion(
                         selectionControls: DesktopTextSelectionControls(),
-                        child: Text(err.toString()),
+                        child: Text(st.toString()),
                       ),
                     ),
                     loading: () => const Center(
@@ -143,28 +182,31 @@ class _AllSongsState extends ConsumerState<AllSongs> {
   }
 }
 
-class _SongGridItem extends StatelessWidget {
-  final SongTrack song;
+class SongGridItem extends StatelessWidget {
+  final Song song;
   final MusicState musicService;
   final MusicService musicNotifier;
+  final SongOperations songOperations;
   final bool isSmall;
   final bool isCompact;
   final ThemeData theme;
 
-  const _SongGridItem({
+  const SongGridItem({
+    super.key,
     required this.song,
     required this.musicService,
     required this.musicNotifier,
     required this.isSmall,
     required this.isCompact,
     required this.theme,
+    required this.songOperations,
   });
 
   @override
   Widget build(BuildContext context) {
     final track = song;
-    final trackFile = song.track;
-    final metadata = song.metadata;
+
+    final trackFile = File(song.path);
     if (!trackFile.existsSync()) return const SizedBox.shrink();
 
     final currentTrack = musicService.current == null
@@ -172,7 +214,6 @@ class _SongGridItem extends StatelessWidget {
         : File(musicService.current!.path);
     final isCurrentPlaying =
         currentTrack != null && trackFile.path == currentTrack.path;
-    final fileName = p.basename(trackFile.path);
 
     return InkWell(
       borderRadius: BorderRadius.circular(2),
@@ -197,9 +238,9 @@ class _SongGridItem extends StatelessWidget {
             Expanded(
               child: SizedBox(
                 width: double.infinity,
-                child: metadata.image != null
+                child: track.artwork != null
                     ? Image.memory(
-                        metadata.image!,
+                        track.artwork!,
                         fit: BoxFit.cover,
                         cacheHeight: 100,
                         cacheWidth: 100,
@@ -220,16 +261,39 @@ class _SongGridItem extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              metadata.title ?? fileName,
+              track.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: isSmall ? 12 : (isCompact ? 14 : 17)),
             ),
-            if (metadata.duration != null)
-              Text(
-                formatDuration(metadata.duration!),
-                style: const TextStyle(fontSize: 10),
-              ),
+            Row(
+              mainAxisAlignment: .spaceBetween,
+              children: [
+                Text(
+                  formatDuration(Duration(milliseconds: track.duration)),
+                  style: const TextStyle(fontSize: 10),
+                ),
+                IconButton(
+                  onPressed: () async {
+                    if (song.isFavorite == true) {
+                      songOperations.removeFavorite(song.path);
+                    } else {
+                      songOperations.addFavorite(song.path);
+                    }
+                  },
+                  icon: Icon(
+                    song.isFavorite == true
+                        ? HugeIconsSolid.favourite
+                        : HugeIconsStroke.favourite,
+                    size: 14,
+                    color: song.isFavorite == true
+                        ? theme.colorScheme.primary
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+
             if (isCurrentPlaying)
               SpectrumMountain(height: 10, player: musicNotifier.audioPlayer),
           ],
@@ -239,28 +303,31 @@ class _SongGridItem extends StatelessWidget {
   }
 }
 
-class _SongListItem extends StatelessWidget {
-  final SongTrack song;
+class SongListItem extends StatelessWidget {
+  final Song song;
   final MusicState musicService;
   final MusicService musicNotifier;
+  final SongOperations songOperations;
   final bool isSmall;
   final bool isCompact;
   final ThemeData theme;
 
-  const _SongListItem({
+  const SongListItem({
+    super.key,
     required this.song,
     required this.musicService,
     required this.musicNotifier,
     required this.isSmall,
     required this.isCompact,
     required this.theme,
+    required this.songOperations,
   });
 
   @override
   Widget build(BuildContext context) {
     final track = song;
-    final trackFile = song.track;
-    final metadata = song.metadata;
+
+    final trackFile = File(song.path);
     if (!trackFile.existsSync()) return const SizedBox.shrink();
 
     final currentTrack = musicService.current == null
@@ -268,7 +335,6 @@ class _SongListItem extends StatelessWidget {
         : File(musicService.current!.path);
     final isCurrentPlaying =
         currentTrack != null && trackFile.path == currentTrack.path;
-    final fileName = p.basename(trackFile.path);
 
     final double size = isSmall ? 30 : (isCompact ? 50 : 70);
 
@@ -298,9 +364,9 @@ class _SongListItem extends StatelessWidget {
                 SizedBox(
                   width: size,
                   height: size,
-                  child: metadata.image != null
+                  child: track.artwork != null
                       ? Image.memory(
-                          metadata.image!,
+                          track.artwork!,
                           fit: BoxFit.cover,
                           cacheHeight: 100,
                           cacheWidth: 100,
@@ -324,7 +390,7 @@ class _SongListItem extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        metadata.title ?? fileName,
+                        track.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -333,15 +399,32 @@ class _SongListItem extends StatelessWidget {
                       ),
                       if (!isSmall)
                         Text(
-                          metadata.artist ?? "Unknown",
+                          track.artist ?? "Unknown",
                           style: const TextStyle(fontSize: 12),
                         ),
-                      if (metadata.duration != null)
-                        Text(
-                          formatDuration(metadata.duration!),
-                          style: const TextStyle(fontSize: 10),
-                        ),
+                      Text(
+                        formatDuration(Duration(milliseconds: track.duration)),
+                        style: const TextStyle(fontSize: 10),
+                      ),
                     ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () async {
+                    if (song.isFavorite == true) {
+                      songOperations.removeFavorite(song.path);
+                    } else {
+                      songOperations.addFavorite(song.path);
+                    }
+                  },
+                  icon: Icon(
+                    song.isFavorite == true
+                        ? HugeIconsSolid.favourite
+                        : HugeIconsStroke.favourite,
+                    size: 14,
+                    color: song.isFavorite == true
+                        ? theme.colorScheme.primary
+                        : null,
                   ),
                 ),
               ],

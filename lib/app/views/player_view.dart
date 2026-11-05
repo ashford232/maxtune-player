@@ -7,6 +7,7 @@ import 'package:lite_router/lite_router.dart';
 import 'package:maxtune_player/app/services/app_providers.dart';
 import 'package:maxtune_player/app/views/controls.dart';
 import 'package:maxtune_player/app/widgets/waveform_seekbar.dart';
+import 'package:maxtune_player/core/db/services/database_provider.dart';
 
 class PlayerView extends ConsumerStatefulWidget {
   const PlayerView({super.key});
@@ -23,7 +24,7 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
     final theme = Theme.of(context);
     final track = musicService.current == null
         ? null
-        : File(musicService.current!.track.path);
+        : File(musicService.current!.path);
     final fileExists = track?.existsSync() ?? false;
 
     if (!fileExists) {
@@ -34,9 +35,41 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
         }
       });
     }
+    final songOperation = ref.read(songsOperationProvider);
+    final songAsync = ref.watch(watchSongProvider(track?.path ?? ""));
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainer,
       appBar: AppBar(
+        actions: [
+          songAsync.when(
+            data: (s) {
+              if (s == null) {
+                return SizedBox.shrink();
+              }
+              return IconButton(
+                onPressed: () async {
+                  if (s.isFavorite == true) {
+                    songOperation.removeFavorite(s.path);
+                  } else {
+                    songOperation.addFavorite(s.path);
+                  }
+                },
+                icon: Icon(
+                  s.isFavorite == true
+                      ? HugeIconsSolid.favourite
+                      : HugeIconsStroke.favourite,
+                  size: 20,
+                  color: s.isFavorite == true
+                      ? theme.colorScheme.primary
+                      : null,
+                ),
+              );
+            },
+            error: (err, st) => SizedBox.shrink(),
+            loading: () => SizedBox.shrink(),
+          ),
+          const SizedBox(width: 12),
+        ],
         backgroundColor: theme.colorScheme.surfaceContainer,
 
         leading: IconButton(
@@ -82,6 +115,7 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
                         ],
                       ),
                     ),
+
                     Divider(height: 1),
                     ControlsView(isPlayer: true),
                   ],

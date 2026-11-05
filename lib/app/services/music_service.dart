@@ -3,7 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:maxtune_player/features/library/services/library_notifier.dart';
+import 'package:maxtune_player/core/db/app_database.dart';
+import 'package:maxtune_player/core/db/services/database_provider.dart';
 import 'package:mpv_audio_kit/mpv_audio_kit.dart';
 import 'package:path/path.dart' as p;
 
@@ -50,16 +51,23 @@ class MusicService extends Notifier<MusicState> {
     );
 
     _subscriptions.add(
-      audioPlayer.stream.playlist.listen((playlist) {
-        if (playlist.index >= 0 && playlist.index < state.library.length) {
-          final activeFile = state.library[playlist.index];
-          if (state.current?.track.path != activeFile.track.path) {
-            state = state.copyWith(current: activeFile);
+      audioPlayer.stream.playlist.listen((playlist) async {
+        if (playlist.index >= 0 && playlist.index < playlist.items.length) {
+          final activeMedia = playlist.items[playlist.index];
+          final path = activeMedia.uri;
 
-            // Update OS lock-screen metadata for the new track
-            final fileName = p.basename(activeFile.track.path);
+          final songOperations = ref.read(songsOperationProvider);
+          final activeSong = await songOperations.getSongByPath(path);
+
+          if (activeSong != null && state.current?.path != activeSong.path) {
+            state = state.copyWith(current: activeSong);
+
+            final fileName = p.basename(activeSong.path);
             audioPlayer.setMediaSession(
-              MediaSession(title: fileName, artist: 'Maxtune Player'),
+              MediaSession(
+                title: fileName,
+                artist: activeSong.artist ?? 'Maxtune Player',
+              ),
             );
           }
         }
@@ -79,70 +87,74 @@ class MusicService extends Notifier<MusicState> {
       audioPlayer.dispose();
     });
 
-    return MusicState();
+    return const MusicState();
   }
 
   @override
   bool updateShouldNotify(MusicState previous, MusicState next) {
     return previous.isPlaying != next.isPlaying ||
         previous.volume != next.volume ||
-        previous.current?.track.path != next.current?.track.path ||
-        previous.library.length != next.library.length;
+        previous.current?.path != next.current?.path;
   }
 
-  void addToLibrary(SongTrack file) {
-    state = state.copyWith(library: [...state.library, file]);
-  }
-
-  Future<void> playFromLibrary(
-    List<SongTrack> library,
-    SongTrack targetFile,
-  ) async {
-    final targetIndex = library.indexWhere(
-      (track) => track.track.path == targetFile.track.path,
+  Future<void> playSongs(List<Song> songs, Song targetSong) async {
+    final targetIndex = songs.indexWhere(
+      (track) => track.path == targetSong.path,
     );
 
     if (targetIndex == -1) {
-      debugPrint('Selected song not found in library.');
+      debugPrint('Selected song not found in song list.');
       return;
     }
 
     try {
-      final mediaList = library.map((file) => Media(file.track.path)).toList();
+      final mediaList = songs.map((file) => Media(file.path)).toList();
 
       await audioPlayer.openAll(mediaList, index: targetIndex);
       await audioPlayer.play();
 
-      state = state.copyWith(current: targetFile, isPlaying: true);
+      state = state.copyWith(current: targetSong, isPlaying: true);
 
-      final fileName = p.basename(targetFile.track.path);
+      final fileName = p.basename(targetSong.path);
       await audioPlayer.setMediaSession(
-        MediaSession(title: fileName, artist: 'Maxtune Player'),
+        MediaSession(
+          title: fileName,
+          artist: targetSong.artist ?? 'Maxtune Player',
+        ),
       );
     } catch (e, st) {
-      debugPrint('Error playing from library: $e');
+      debugPrint('Error playing songs: $e');
       debugPrintStack(stackTrace: st);
     }
   }
 
-  Future<void> playTrack(SongTrack file) async {
+  Future<void> playTrack(Song file) async {
     try {
-      if (!await File(file.track.path).exists()) {
-        debugPrint('File does not exist: ${file.track.path}');
+      if (!await File(file.path).exists()) {
+        debugPrint('File does not exist: ${file.path}');
         return;
       }
 
-      final exists = state.library.any(
-        (song) => song.track.path == file.track.path,
-      );
+      final songOperations = ref.read(songsOperationProvider);
+      final historyOperations = ref.read(playHistoryOperationProvider);
 
-      final updatedLibrary = exists ? state.library : [...state.library, file];
+      final allSongs = await songOperations.getAllSongs();
+      final exists = allSongs.any((song) => song.path == file.path);
 
       if (!exists) {
-        state = state.copyWith(library: updatedLibrary);
+        await songOperations.addSong(
+          SongsCompanion.insert(
+            title: file.title,
+            path: file.path,
+            duration: file.duration,
+            addedAt: DateTime.now(),
+          ),
+        );
       }
+    await  historyOperations.addToHistory(file.path);
 
-      await playFromLibrary(updatedLibrary, file);
+      final updatedQueue = await songOperations.getAllSongs();
+      await playSongs(updatedQueue.isEmpty ? [file] : updatedQueue, file);
     } catch (e, st) {
       debugPrint('Playback error: $e');
       debugPrintStack(stackTrace: st);
@@ -175,36 +187,33 @@ class MusicService extends Notifier<MusicState> {
   }
 
   Future<void> removeMissingFiles() async {
-    final validFiles = <SongTrack>[];
-    SongTrack? activeTrack = state.current;
+    final songOperations = ref.read(songsOperationProvider);
+    final allSongs = await songOperations.getAllSongs();
+    Song? activeTrack = state.current;
 
-    for (final file in state.library) {
-      if (await File(file.track.path).exists()) {
-        validFiles.add(file);
-      } else if (state.current?.track.path == file.track.path) {
-        activeTrack = null;
+    for (final song in allSongs) {
+      if (!await File(song.path).exists()) {
+        await songOperations.deleteSong(song.path);
+        if (state.current?.path == song.path) {
+          activeTrack = null;
+        }
       }
     }
 
-    if (validFiles.length != state.library.length) {
-      state = state.copyWith(library: validFiles, current: activeTrack);
+    final validSongs = await songOperations.getAllSongs();
+    if (validSongs.isNotEmpty) {
+      final mediaList = validSongs.map((f) => Media(f.path)).toList();
+      int targetIndex = 0;
 
-      if (validFiles.isNotEmpty) {
-        final mediaList = validFiles.map((f) => Media(f.track.path)).toList();
-        int targetIndex = 0;
-
-        if (activeTrack != null) {
-          targetIndex = validFiles.indexWhere(
-            (f) => f.track.path == activeTrack!.track.path,
-          );
-          if (targetIndex == -1) targetIndex = 0;
-        }
-
-        await audioPlayer.openAll(mediaList, index: targetIndex);
-      } else {
-        await audioPlayer.stop();
-        state = state.copyWith(current: null, isPlaying: false);
+      if (activeTrack != null) {
+        targetIndex = validSongs.indexWhere((f) => f.path == activeTrack!.path);
+        if (targetIndex == -1) targetIndex = 0;
       }
+
+      await audioPlayer.openAll(mediaList, index: targetIndex);
+    } else {
+      await audioPlayer.stop();
+      state = state.copyWith(current: null, isPlaying: false);
     }
   }
 
@@ -216,26 +225,14 @@ class MusicService extends Notifier<MusicState> {
 class MusicState {
   final bool isPlaying;
   final double volume;
-  final List<SongTrack> library;
-  final SongTrack? current;
+  final Song? current;
 
-  const MusicState({
-    this.isPlaying = false,
-    this.volume = 0.8,
-    this.library = const [],
-    this.current,
-  });
+  const MusicState({this.isPlaying = false, this.volume = 0.8, this.current});
 
-  MusicState copyWith({
-    bool? isPlaying,
-    double? volume,
-    List<SongTrack>? library,
-    SongTrack? current,
-  }) {
+  MusicState copyWith({bool? isPlaying, double? volume, Song? current}) {
     return MusicState(
       isPlaying: isPlaying ?? this.isPlaying,
       volume: volume ?? this.volume,
-      library: library ?? this.library,
       current: current ?? this.current,
     );
   }

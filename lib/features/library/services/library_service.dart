@@ -1,11 +1,15 @@
 import 'dart:io';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
-import 'package:file_selector/file_selector.dart';
+import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
-import 'package:maxtune_player/features/library/services/library_notifier.dart';
+import 'package:maxtune_player/core/db/app_database.dart';
+import 'package:maxtune_player/core/db/operations/song_operations.dart';
+import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 
 class LibraryService {
+  final SongOperations operations;
   static const _extensions = {
     '.mp3',
     '.wav',
@@ -19,7 +23,9 @@ class LibraryService {
     '.ape',
   };
 
-  Future<List<SongTrack>> getAllSongs() async {
+  LibraryService({required this.operations});
+
+  Future<List<Song>> getAllSongs() async {
     final home = Platform.environment['USERPROFILE'];
 
     if (home == null) return [];
@@ -32,7 +38,7 @@ class LibraryService {
       Directory('$home\\OneDrive\\Desktop'),
     ];
 
-    final songs = <SongTrack>[];
+    final songs = <Song>[];
     final visited = <String>{};
 
     for (final folder in folders) {
@@ -46,7 +52,7 @@ class LibraryService {
 
   Future<void> _scanDirectory(
     Directory directory,
-    List<SongTrack> songs,
+    List<Song> songs,
     Set<String> visited,
   ) async {
     try {
@@ -66,16 +72,18 @@ class LibraryService {
           if (_extensions.any(filePath.endsWith)) {
             final file = entity;
             final rawMetadata = readMetadata(file, getImage: true);
-            final metadata = Metadata(
-              title: rawMetadata.title,
-              artist: rawMetadata.artist,
+
+            final track = Song(
+              path: file.path,
+              addedAt: DateTime.now(),
+              duration: rawMetadata.duration?.inMilliseconds ?? 0,
+              title: rawMetadata.title ?? p.basename(file.path),
               album: rawMetadata.album,
-              duration: rawMetadata.duration,
-              image: rawMetadata.pictures.isEmpty
+              artist: rawMetadata.artist,
+              artwork: rawMetadata.pictures.isEmpty
                   ? null
                   : rawMetadata.pictures.first.bytes,
             );
-            final track = SongTrack(track: file, metadata: metadata);
             songs.add(track);
           }
         } else if (entity is Directory) {
@@ -87,28 +95,19 @@ class LibraryService {
     }
   }
 
-  Future<List<SongTrack>> getSongTrack({required List<XFile> files}) async {
-    try {
-      List<SongTrack> songs = [];
-
-      for (final file in files) {
-        final rawMetadata = readMetadata(File(file.path), getImage: true);
-        final metadata = Metadata(
-          title: rawMetadata.title,
-          artist: rawMetadata.artist,
-          album: rawMetadata.album,
-          duration: rawMetadata.duration,
-          image: rawMetadata.pictures.isEmpty
-              ? null
-              : rawMetadata.pictures.first.bytes,
-        );
-        final track = SongTrack(track: File(file.path), metadata: metadata);
-        songs.add(track);
-      }
-      return songs;
-    } catch (err) {
-      debugPrint(err.toString());
-      return [];
+  Future<void> refreshAllSongs() async {
+    final songs = await getAllSongs();
+    for (final s in songs) {
+      final song = SongsCompanion(
+        duration: Value(s.duration),
+        path: Value(s.path),
+        title: Value(s.title),
+        album: Value(s.album),
+        artist: Value(s.artist),
+        addedAt: Value(DateTime.now()),
+        artwork: Value(s.artwork),
+      );
+      await operations.addSong(song);
     }
   }
 }
