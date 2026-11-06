@@ -5,7 +5,7 @@ class AppThemes {
   AppThemes._();
 
   // Primary brand accent (consistent across themes)
-  static const Color primary = Color.fromARGB(255, 211, 13, 105);
+  static const Color primary = Color(0xffd30a69);
   static const Color primaryHover = Color.fromARGB(255, 185, 10, 90);
   static const Color onPrimary = Colors.white;
 

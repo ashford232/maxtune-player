@@ -20,7 +20,7 @@ class AppDatabase extends _$AppDatabase {
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final directory = await getApplicationSupportDirectory();
-    final file = File(p.join(directory.path, "maxtune11.sqlite"));
+    final file = File(p.join(directory.path, "maxtune_player.sqlite"));
     return NativeDatabase(file);
   });
 }
