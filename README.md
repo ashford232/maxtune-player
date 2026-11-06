@@ -15,7 +15,7 @@ MuxTune Player is a desktop music application designed to provide a simple and e
 
 ## Downloads
 
-Download the latest version of MuxTune Player for Windows from the [GitHub Releases](https://github.com/ashford232/maxtune_player/releases) page.
+Download the latest version of MuxTune Player for Windows from the [GitHub Releases](https://github.com/ashford232/maxtune-player/releases) page.
 
 Download the installer, run it, and follow the setup instructions to install MuxTune Player.
 
